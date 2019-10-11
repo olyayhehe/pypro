@@ -1,0 +1,433 @@
+{% extends 'base.html' %}
+{% block title %}ZMQ通信连接{% endblock %}
+{% block tag %} {% load pagetag %} {% endblock %}
+
+{% block canvas %}
+ #canvas {
+   background: #ffffff;
+   cursor: pointer;
+   margin-left: 10px;
+   margin-top: 10px;
+   -webkit-box-shadow: 4px 4px 8px rgba(0,0,0,0.5);
+   -moz-box-shadow: 4px 4px 8px rgba(0,0,0,0.5);
+   box-shadow: 4px 4px 8px rgba(0,0,0,0.5);
+ }
+
+ #canvasbottom {
+   background: #ffffff;
+   cursor: pointer;
+   margin-left: 10px;
+   margin-top: 10px;
+   -webkit-box-shadow: 4px 4px 8px rgba(0,0,0,0.5);
+   -moz-box-shadow: 4px 4px 8px rgba(0,0,0,0.5);
+   box-shadow: 4px 4px 8px rgba(0,0,0,0.5);
+ }
+{% endblock %}
+
+{% block toptitle %}
+    ZMQ通信连接
+{% endblock %}
+{% block content %}
+
+    <div class="row clearfix"  style=" border-left:2px solid #009ceb;border-top:2px solid #009ceb;border-right:2px solid #009ceb">
+        <div class="col-md-1 column">
+        </div>
+        <div class="col-md-10 column">
+{#            <h5 class="text-center">#}
+{#                多频谱显示#}
+{#            </h5>#}
+        <table class="table table-bordered"  style="background-color:aliceblue; -webkit-box-shadow: 4px 4px 8px rgba(0,0,0,0.5);
+   -moz-box-shadow: 4px 4px 8px rgba(0,0,0,0.5);
+   box-shadow: 4px 4px 8px rgba(0,0,0,0.5);">
+            <thead>
+            <tr>
+                <th>ID</th>
+                <th>名称</th>
+                <th>KEY</th>
+                <th>经度</th>
+                <th>纬度</th>
+                <th>主题</th>
+                <th>测站相关主题</th>
+                <th>操作</th>
+            </tr>
+            </thead>
+            <tbody>
+            {% for row in cus_list %}
+{#                <tr class="success"> error warning info#}
+                <tr>
+                    <td>{{ row.id }}</td>
+                    <td>{{ row.name }}</td>
+                    <td>{{ row.client_key }}</td>
+                    <td>{{ row.longitude }}</td>
+                    <td>{{ row.latitude }}</td>
+                    <td>{{ row.topic }}/freq</td>
+                    <td>
+                        <select class="form-control" id="sel-opt">
+                          {% for topic in topic_list %}
+                              {% if topic.r_client_id == row.id %}
+                              <option value="{{ topic.key }}">{{ topic.name }}-{{ topic.topic }}</option>
+                              {% endif %}
+                          {% endfor %}
+                        </select>
+                    </td>
+                    <td>
+{#                        <a href="/backend/client-del-{{ row.id }}.html" class="btn btn-danger btn-xs">#}
+{#                            <i class="fa fa-times" aria-hidden="true"></i>#}
+{#                            控制#}
+{#                        </a>#}
+                        <a id="client_edit" class="btn btn-primary btn-xs">
+                            <i class="fa fa-pencil-square-o" aria-hidden="true"></i>
+                            频谱控制与显示
+                        </a>
+                    </td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+        <nav aria-label="Page navigation">
+            <ul class="pagination">
+                {% if cus_list.has_previous %}
+                    <li>
+                        <a href="?page={{ cus_list.previous_page_number }}" aria-label="Previous">
+                            <span aria-hidden="true">&laquo;</span>
+                        </a>
+                    </li>
+                {% endif %}
+
+                {% for pg in cus_list.paginator.page_range %}
+                    {% circle_page cus_list.number pg %}
+                {% endfor %}
+
+                {% if cus_list.has_next %}
+                    <li>
+                        <a href="?page={{ cus_list.next_page_number }}" aria-label="Next">
+                            <span aria-hidden="true">&raquo;</span>
+                        </a>
+                    </li>
+                {% endif %}
+            </ul>
+        </nav>
+
+        </div>
+        <div class="col-md-1 column">
+        </div>
+    </div>
+    <div class="row clearfix" style="border-left:2px solid #009ceb;border-right:2px solid #009ceb;border-top:2px solid #009ceb;border-bottom:2px solid #009ceb">
+         <div class="col-md-9 column">
+             <textarea id="rec-text" style="width:95%;height:700px;margin-top:20px;margin-left: 20px;margin-right:20px;margin-bottom: 10px;"></textarea>
+             <textarea id="send-text" style="width:95%;height:80px;margin-top:20px;margin-left: 20px;margin-right:20px;margin-bottom: 10px;"></textarea>
+             <button class="btn btn-primary" id="send_msg" type="button" style="float:right;margin-right:30px;margin-bottom: 10px;">发送</button>
+        </div>
+        <div class="col-md-3 column" style="border-left:2px solid #009ceb;border-bottom:2px solid #009ceb">
+            <div class="panel panel-default">
+                <div class="panel-heading">跟踪配置</div>
+                <div class="panel-body">
+                    <ul class="blog-types">
+                        <div>
+                            <input type="checkbox" id="maxretain" οnclick="MaxRetain(this)">
+                                <label for="maxretain">最大保持</label>
+                        </div>
+                        <div>
+                            <input type="checkbox" id="minretain" οnclick="MinRetain(this)">
+                                <label for="minretain">最小保持</label>
+                        </div>
+
+                    </ul>
+                </div>
+            </div>
+            <div class="panel panel-default">
+                <div class="panel-heading">主题信息</div>
+                <div class="panel-body">
+                    <ul class="blog-types" id="id-topic">
+                    </ul>
+                </div>
+                <div>
+                    <button class="btn btn-primary" id="clear_text" type="button" style="position:relative;top:-10px;left:75px;">清除列表内容</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row clearfix">
+        <div class="col-md-6 column">
+
+            <div style="float: left; position: relative;left: 50%;">
+                <div id="freqArea1" style="position: relative;left: -50%;">
+
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6 column">
+            <div style="float: left; position: relative;left: 50%;">
+                <div id="freqArea2" style="position: relative;left: -50%;">
+
+                </div>
+            </div>
+        </div>
+    </div>
+{% endblock %}
+
+{% block script_extends %}
+<script>
+    var topic = '', ctr_topic = '', para_topic = '', topic1 = '';
+    var hostname = '192.168.31.248', //'192.168.1.2',
+    port = 8080,
+
+
+    {% for row in setting_list %}
+        {% if row.key == "zmq_host" %}
+             hostname = '{{ row.value }}';
+             console.log(hostname);
+        {% elif row.key == "zmq_port" %}
+             port = {{ row.value }};
+             console.log(port);
+        {% endif %}
+    {% endfor %}
+
+    clientId = '{{ userinfo.username }}-{{ userinfo.id }}';
+    console.log(clientId);
+</script>
+<script src="/static/lot/commlink.js" type="text/javascript"></script>
+
+
+<script>
+
+	function sendmsg(msg){
+        if(State.isConnected == true)
+        {
+            Connection.send(msg);
+        }
+    }
+
+    $("#maxretain").click(function () {
+        if($("#maxretain").is(':checked')) {
+            maxarr = arr.slice(0);
+            isMax = true;
+        }
+        else{
+            isMax = false;
+        }
+		});
+
+
+    $("#minretain").click(function () {
+        if($("#minretain").is(':checked')) {
+            minarr = arr.slice(0);
+            isMin = true;
+        }
+        else{
+            isMin = false;
+        }
+		});
+
+    $("input[name='ydb']").TouchSpin({
+        min: 1,
+        max: 30,
+        step: 1,
+        decimals: 0,
+        boostat: 5,
+        maxboostedstep: 10,
+        postfix: 'db'
+    }).on("change", function(){
+		console.log(this.value);
+		var value = this.value;
+		arr[7]=value;
+
+	});
+
+
+    $("input[name='ref']").TouchSpin({
+        min: -150,
+        max: 0,
+        step: 10,
+        decimals: 0,
+        boostat: 5,
+        maxboostedstep: 10,
+        postfix: ''
+    }).on("change", function(){
+		console.log(this.value);
+		var value = this.value;
+		arr[6]=value;
+	});
+
+    $("input[name='framerate']").TouchSpin({
+        min: 1,
+        max: 30,
+        step: 1,
+        decimals: 0,
+        boostat: 5,
+        maxboostedstep: 10,
+        postfix: '帧'
+    }).on("change", function(){
+		var value = this.value;
+        // {'pub':{'station/lot/1/freq':{'frame_rate':10}}};
+		var msg='{"pub":{'+'"'+ctr_topic+'"'+
+        ':{"frame_rate":'+String(value)+"}}}";
+        console.log(msg);
+        sendmsg(msg);
+	});
+
+
+    $("input[name='avgalpha']").TouchSpin({
+        min: 0.1,
+        max: 1.0,
+        step: 0.1,
+        decimals: 2,
+        boostat: 5,
+        maxboostedstep: 10,
+        postfix: ''
+    }).on("change", function(){
+        var value = this.value;
+		//var msg='{"avg_alpha":'+String(value)+"}";
+        var msg='{"pub":{'+'"'+ctr_topic+'"'+
+        ':{"avg_alpha":'+String(value)+"}}}";
+        console.log(msg);
+        sendmsg(msg);
+	});
+
+    $("input[name='gain']").TouchSpin({
+        min: 0,
+        max: 60,
+        step: 1,
+        decimals: 0,
+        boostat: 5,
+        maxboostedstep: 10,
+        postfix: 'db'
+    }).on("change", function(){
+        var value = this.value;
+		//var msg='{"gain":'+String(value)+"}";
+        var msg='{"pub":{'+'"'+ctr_topic+'"'+
+        ':{"gain":'+String(value)+"}}}";
+        console.log(msg);
+        sendmsg(msg);
+	});
+
+
+    $("input[name='samplerate']").TouchSpin({
+        min: 1000000,
+        max: 30000000,
+        step: 1000000,
+        decimals: 0,
+        boostat: 5,
+        maxboostedstep: 10,
+        postfix: 'Hz'
+    }).on("change", function(){
+		var value = this.value;
+		//var msg='{"samplerate":'+String(value)+"}";
+        var msg='{"pub":{'+'"'+ctr_topic+'"'+
+        ':{"samplerate":'+value+"}}}";
+        console.log(msg);
+        sendmsg(msg);
+	});
+
+
+
+  	 // With JQuery 使用JQuery 方式调用
+    $('#ex1').slider({
+        formatter: function (value) {
+            return '当前频率值: ' + value;
+        }
+    }).on('slide', function (slideEvt) {
+        //当滚动时触发
+        //console.info(slideEvt);
+        //获取当前滚动的值，可能有重复
+        //console.info(slideEvt.value);
+    }).on('change', function (e) {
+        //当值发生改变的时候触发
+        //console.info(e);
+        //获取旧值和新值
+        //console.info(e.value.oldValue + '--' + e.value.newValue);
+        console.info(e.value.newValue);
+        //var msg='{"freq":'+String(e.value.newValue)+"}";
+        var msg='{"pub":{'+'"'+ctr_topic+'"'+
+        ':{"freq":'+e.value.newValue+"}}}";
+        console.log(msg);
+        sendmsg(msg);
+
+    });
+
+
+      // With JQuery 使用JQuery 方式调用
+    $('#ex2').slider({
+        formatter: function (value) {
+            return '当前带宽值: ' + value;
+        }
+    }).on('slide', function (slideEvt) {
+
+    }).on('change', function (e) {
+        console.info(e.value.newValue);
+        //var msg='{"bandwidth":'+String(e.value.newValue)+"}";
+        var msg='{"pub":{'+'"'+ctr_topic+'"'+
+        ':{"bandwidth":'+e.value.newValue+"}}}";
+        console.log(msg);
+        sendmsg(msg);
+    });
+
+
+
+    $("#selectTd").bind("change",function () {
+        var value = this.value;
+        //var msg='{"TD":'+value+"}";
+        var msg='{"pub":{'+'"'+ctr_topic+'"'+
+        ':{"TD":'+String(value)+"}}}";
+        console.log(msg);
+        sendmsg(msg);
+
+    });
+
+
+    $("#selectTx").bind("change",function () {
+
+        var value = this.value;
+        //var msg='{"antenna":'+'"'+value+'"'+"}";
+        var msg='{"pub":{'+'"'+ctr_topic+'"'+
+        ':{"antenna":'+value+"}}}";
+        console.log(msg);
+        sendmsg(msg);
+
+    });
+
+
+    $("#selectFft").bind("change",function () {
+        var value = this.value;
+        //var msg='{"fftsize":'+value+"}";
+        var msg='{"pub":{'+'"'+ctr_topic+'"'+
+        ':{"fftsize":'+value+"}}}";
+        console.log(msg);
+        sendmsg(msg);
+    });
+
+
+    $("#clear_text").click(function (){
+        $("#rec-text").empty();
+    })
+
+    $("#send_msg").click(function (){
+        for(j = 1,len=topics.length; j <= len; j++) {
+            $log = document.getElementById("topic" + j);
+            if ($log.checked) {
+                var value = $("#send-text").val();
+                var top = topics[j-1];
+                var json_msg={};
+                var json_topic={};
+                json_topic[top] = value;
+                json_msg['pub']= json_topic;
+                var msg=JSON.stringify(json_msg);
+                console.log(msg);
+                sendmsg(msg);
+            }
+        }
+        //$("#send-text").empty();
+    })
+
+
+</script>
+
+
+{% endblock %}
+
+</body>
+
+
+
+</html>

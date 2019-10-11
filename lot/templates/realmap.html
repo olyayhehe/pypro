@@ -1,0 +1,644 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+
+    <!-- CSRF Token -->
+{#    <meta charset="UTF-8">#}
+    <meta name="csrf-token" content="{{ csrf_token }}">
+    <title>实时监控 - django</title>
+
+    {% load staticfiles %}
+
+    <link rel="stylesheet" href="{% static 'bootstrap-3.3.7/css/bootstrap.min.css' %}">
+    <link rel="stylesheet" href="{% static "iview/styles/iview.css" %}" />
+    <script>Vue.config.productionTip=false</script>
+    <script type="text/javascript" src="{% static "js/vue.js" %}" ></script>
+    <script type="text/javascript" src="{% static "iview/iview.min.js" %}" ></script>
+ 
+<!--     <script type="text/javascript" src="http://api.map.baidu.com/api?v=2.0&ak=SrijHOGGM7wzv5f7n4vlENTsA1P8XBSr"></script>  -->
+    <script type="text/javascript" src="{% static "js/BaiduApi_2.0.js" %}" ></script>
+    <script type="text/javascript" src="{% static "js/AreaRestriction_min.js" %}" ></script>
+    <script type="text/javascript" src="{% static "js/TextIconOverlay_min.js" %}" ></script>
+    <script type="text/javascript" src="{% static "js/DistanceTool_min.js" %}" ></script>
+    <script type="text/javascript" src="{% static "js/data_Map.js" %}" ></script>
+    <script type="text/javascript" src="{% static "js/RectangleZoom_min.js" %}" ></script>
+    <script type="text/javascript" src="{% static "baiduTilesInfo.js" %}" ></script>
+
+<!--     <script type="text/javascript" src="http://unpkg.com/inmap/dist/inmap.min.js"></script> -->
+    <script type="text/javascript" src="{% static "inmap/dist/inmap.min.js" %}" ></script>
+    <script type="text/javascript" src="{% static "js/mqtt.min.js" %}" ></script>
+    <script type="text/javascript" src="{% static "js/dayjs.min.js" %}" ></script>
+    <script type="text/javascript" src="{% static "js/config.data.js" %}" ></script>
+<!--     <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.3.1/jquery.min.js" %} ></script> -->
+    <script src="{% static "js/jquery.min.js" %}"></script>
+
+
+    <style type="text/css">
+        [v-cloak] {display: none;}
+        .ivu-menu-light {
+            background: lightskyblue;
+        }
+
+        .ivu-menu-horizontal {
+            height: 70px;
+            line-height: 60px;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="app" v-cloak>
+        <Layout>
+            <Header>
+                <i-menu mode="horizontal" theme="light" width="auto">
+                    <i-col span="12">
+                        <row type="flex" justify="start" class="code-row-bg">
+                            <h3> &nbsp; 实时监控 {{ time }} </h3>
+                        </row>
+                    </i-col>
+
+                    <i-col span="5">
+                        <row type="flex" justify="center" class="code-row-bg">
+                            <i-col span="8">
+                                <checkbox v-model="is_show_client"> 测站 </checkbox> 
+                            </i-col>
+
+                            <i-col span="16">
+                                <i-select v-model="map_theme">
+                                    <i-option v-for="item in themes" :value="item.value" :key="item.value">{{ item.label }}</i-option>
+                                </i-select>  
+                            </i-col>
+                        </row>
+                    </i-col>
+
+                    <i-col span="6">
+
+                        <row type="flex" justify="end" class="code-row-bg">
+                            <span>登录用户：{{ user.username }}</span>
+                            <submenu name="3">
+                                <template slot="title">{{ user.name | safe }}</template>
+{#                                    {% if user.id == 1 %}#}
+                                        <menu-item name="3-1" to="/admin">数据管理</menu-item>
+{#                                    {% endif %}#}
+                                <menu-item name="3-2" to="/lot/realmap.html">实时数据展示</menu-item>
+{#                                <menu-item name="3-3" to="/history.html">数据回放</menu-item>#}
+                                <menu-item name="3-3" to="/lot/mqcontrol.html">设备控制(mqtt)</menu-item>
+                                <menu-item name="3-4" to="/lot/zqcontrol.html">设备控制(zmq)</menu-item>
+                                <menu-item name="3-5"
+                                    onclick="event.preventDefault(); document.getElementById('logout-form').submit();"
+                                >注 销</menu-item>
+
+                                <form id="logout-form" action="/lot/logout.html" method="POST" style="display: none;">
+                                    {% csrf_token %}
+                                </form>
+{#                                 <menu-item name="3-5" to="{% url 'logout' %}?from={{ request.get_full_path }}">退出</menu-item>#}
+                            </submenu>
+                            <a href="{% url 'user_info' %}" class="avatar">
+                                {% if user.get_avatar != '' %}
+                                <img class="img-circle" style="vertical-align:middle;padding:5px;height:55px; width:55px;" src="{{ MEDIA_URL }}{{ user.get_avatar }} ">
+                                {% else %}
+                                <img class="img-circle" style="vertical-align:middle;padding:5px;height:55px; width:55px;" src="/media/default.png">
+                                {% endif %}
+                            </a>
+
+                        </row>
+                    </i-col>
+                </i-menu>  
+            </Header>
+
+            <Content>
+
+                <i-col span="8"> 
+                    <card id="data-card">
+                        <tabs size="small">
+                            <tab-pane label="坐标点">
+                                <i-table size="small" highlight-row :columns="columns.coordinate" :data="coordinate"></i-table>
+                            </tab-pane>
+                            <tab-pane label="测站">
+                                <i-table size="small" border ref="selection" v-on:on-selection-change="selectionChange"  :columns="columns.client" :data="client"></i-table>
+                            </tab-pane>
+                            <tab-pane label="飞行器">
+                                <i-table size="small" :columns="columns.aircraft" :data="aircraft"></i-table>
+                            </tab-pane>
+                        </tabs> 
+                    </card>
+                </i-col>
+
+                <i-col span="16">
+                    <row>
+                        <i-col span="24">
+                            <div id="allmap"></div>
+                        </i-col>
+                    </row>
+
+                    <row>
+                        <i-col span="24">
+                            <card style="height: 60px;">
+                                <i-col span="16">
+                                   <!--  <i-button>Default</i-button>
+                                    <i-button type="primary" v-on:click="testClick">Default</i-button> -->
+                                </i-col>
+                                <i-col span="4">
+                                    <i-input v-model="point.lat" style="width: 150px">
+                                        <span slot="prepend">经度：</span>
+                                    </i-input>
+                                </i-col>
+                                <i-col span="4">
+                                    <i-input v-model="point.lng" style="width: 150px">
+                                        <span slot="prepend">纬度：</span>
+                                    </i-input>
+                                </i-col>
+                            </card>
+                        </i-col>
+                    </row>
+                </i-col>
+
+            </Content>  
+           
+        </Layout> 
+    </div>
+    <script>
+        let tileLayer = new BMap.TileLayer();
+        tileLayer.getTilesUrl = function(tileCoord, zoom) {
+        let x = tileCoord.x;
+        let y = tileCoord.y;
+        let url = outputPath + zoom + '/' + x + '/' + y + format;
+        console.log(outputPath);
+        return url;
+        };
+
+    </script>    
+
+    <script>
+        var v = new Vue({
+            el: '#app', 
+            data: { 
+                columns: {
+                    coordinate: [
+                        {
+                            title: '飞行器ID',
+                            minWidth: 150,
+                            key: 'aircraft_key',
+                            fixed: 'left'
+                        },
+                        {
+                            title: '是否合法',
+                            minWidth: 90,
+                            key: 'is_legal',
+                            fixed: 'right',
+                        },
+                        {
+                            title: '经度', 
+                            minWidth: 130,
+                            key: 'longitude'
+                        },
+                        {
+                            title: '纬度', 
+                            minWidth: 130,
+                            key: 'latitude'
+                        },
+                        {
+                            title: '高度',
+                            minWidth: 70,
+                            key: 'height'
+                        },
+                        {
+                            title: '航向',
+                            minWidth: 70,
+                            key: 'heading'
+                        },
+                        {
+                            title: '航速',
+                            minWidth: 70,
+                            key: 'speed'
+                        },
+                        {
+                            title: '时间',
+                            minWidth: 150,
+                            key: 'time'
+                        }
+                    ],
+                    client: [
+                        {
+                            type: 'selection',
+                            minWidth: 50,
+                            align: 'center',
+                            fixed: 'right'
+                        },
+                        {
+                            title: '测站名称',
+                            minWidth: 100,
+                            key: 'name',
+                            fixed: 'left'
+                        },
+                        {
+                            title: '测站ID',
+                            minWidth: 250,
+                            key: 'client_key'
+                        },
+                        {
+                            title: '经度',
+                            minWidth: 150,
+                            key: 'longitude'
+                        },
+                        {
+                            title: '纬度',
+                            minWidth: 150,
+                            key: 'latitude'
+                        }
+                    ],
+                    aircraft: [
+                        {
+                            title: '飞行器ID',
+                            minWidth: 150,
+                            fixed: 'left',
+                            key: 'aircraft_key'
+                        },
+                        {
+                            title: '品牌',
+                            minWidth: 100,
+                            key: 'brand'
+                        },
+                        {
+                            title: '型号',
+                            minWidth: 100,
+                            key: 'model'
+                        },
+                        {
+                            title: '描述',
+                            minWidth: 300,
+                            key: 'description'
+                        }
+                    ] 
+                },
+                aircraft: [],
+                aircraft_keys: [],
+                coordinate: [],
+                client: {{ client_list | safe }},
+                client_checked: [],
+                is_show_client: false,
+                client_overlay: null,
+                inmap: null,
+                bmap:null,
+                tileLayer:null,
+                tileMapType:null,
+                themes: [
+                    {value: 'normal', label: '默认地图样式'},
+                    {value: 'light', label: '清新蓝风格'},
+                    {value: 'dark', label: '黑夜风格'},
+                    {value: 'redalert', label: '红色警戒风格'},
+                    {value: 'googlelite', label: '精简风格'},
+                    {value: 'grassgreen', label: '自然绿风格'},
+                    {value: 'midnight', label: '午夜蓝风格'},
+                    {value: 'pink', label: '浪漫粉风格'},
+                    {value: 'darkgreen', label: '青春绿风格'},
+                    {value: 'bluish', label: '清新蓝绿风格'},
+                    {value: 'grayscale', label: '高端灰风格'},
+                    {value: 'hardedge', label: '强边界风格'}
+                ],
+                map_theme: '', 
+                time: dayjs().format("YYYY-MM-DD HH:mm:ss"),
+                set_interval_obj: null,
+                aircraft_overlay: null,
+                mqtt_client: null,
+                point: {
+                    lat: 0,    
+                    lng: 0
+                }
+            },
+            created: function () {
+
+                this.mqtt_client  = mqtt.connect('{{ uri | safe }}');
+                this.setInterval(); 
+
+                this.map_theme = 'normal';
+
+                jQuery('div#allmap').height(jQuery(window).outerHeight(true) - 123);
+                jQuery('#data-card').height(jQuery(window).outerHeight(true) - 63);
+
+
+                let client_default = new Image();
+                client_default.src = configData.imgs.client_default;
+
+                let aircraft_normal = new Image();
+                aircraft_normal = configData.imgs.aircraft_normal;
+
+                let aircraft_danger = new Image();
+                aircraft_danger = configData.imgs.aircraft_danger;
+
+                this.imgs = {
+                    client_default: client_default,
+                    aircraft_normal: aircraft_normal,
+                    aircraft_danger: aircraft_danger
+                }; 
+            },
+            mounted: function () {
+
+                //console.log(client);
+                //  this.inmap = new inMap.Map({id: "allmap", skin: this.map_theme});
+
+                // this.inmap.getMap().centerAndZoom(new BMap.Point(116.404, 39.915), 14); // 初始化地图,设置中心点坐标和地图级别
+
+                //  this.inmap.getMap().setCurrentCity("北京"); // 设置地图显示的城市 此项是必须设置的
+                // this.inmap.getMap().enableScrollWheelZoom(true); //开启鼠标滚轮缩放
+
+
+                // let top_left_control = new BMap.ScaleControl({
+                //     anchor: BMAP_ANCHOR_TOP_LEFT
+                // }); 
+                // let top_left_navigation = new BMap.NavigationControl(); 
+
+
+                // this.inmap.getMap().addControl(top_left_control);
+                // this.inmap.getMap().addControl(top_left_navigation);
+
+                // this.inmap.getMap().addControl(new BMap.MapTypeControl({
+                //     mapTypes: [
+                //         BMAP_NORMAL_MAP,
+                //         BMAP_SATELLITE_MAP,
+                //         BMAP_HYBRID_MAP
+                //     ]
+                // }));
+                // //鼠标实时经纬度
+                // this.inmap.getMap().addEventListener("mousemove", function(e) {
+                //     this.point.lat = e.point.lat;
+                //     this.point.lng = e.point.lng;                    
+                // }.bind(this));
+
+
+                this.tileMapType = new BMap.MapType('tileMapType', tileLayer, {minZoom: 1, maxZoom: 18});
+                this.bmap = new BMap.Map('allmap', {mapType: this.tileMapType});
+
+
+                let point = new BMap.Point(116.404, 39.915);
+                this.bmap.centerAndZoom(point, 8);
+                this.bmap.enableScrollWheelZoom(true);
+                let top_left_control = new BMap.ScaleControl({
+                     anchor: BMAP_ANCHOR_TOP_LEFT
+                 }); 
+                 let top_left_navigation = new BMap.NavigationControl(); 
+
+                 this.bmap.addControl(top_left_control);
+                 this.bmap.addControl(top_left_navigation);
+
+
+                //鼠标实时经纬度
+                this.bmap.addEventListener("mousemove", function(e) {
+                    this.point.lat = e.point.lat;
+                    this.point.lng = e.point.lng;                    
+                }.bind(this));
+
+
+
+                this.mqtt_client.on('message', this.mqttMessage);
+
+                // 建立测站信号图层
+                this.client_overlay = new inMap.PointAnimationOverlay({
+                    style: {
+                        fps: 180, //动画帧数
+                        color: "red",
+                        size: 20,
+                        speed: 1
+                    },
+                    data: []
+                });
+                //this.inmap.add(this.client_overlay);
+                this.bmap.addOverlay(this.client_overlay);
+
+            
+                // 建立基站图层
+                this.client_img_overlay = new inMap.ImgOverlay({
+                    tooltip: {
+                        show: true,
+                        formatter: "'测站：' + {client_name}"
+                    },
+                    style: {
+                        normal: {
+                            icon: this.imgs.client_default,
+                            width: 25,
+                            height: 40,
+                            offsets: {
+                                top: "-15%",
+                                left: "-50%"
+                            }
+                        }
+                    },
+                    data: []
+                }); 
+                //this.inmap.add(this.client_img_overlay);
+                this.bmap.addOverlay(this.client_img_overlay);
+
+                // 建立飞行器图层
+                this.aircraft_overlay = new inMap.ImgOverlay({
+                    tooltip: {
+                        show: true,
+                        formatter: "'飞行器ID：' + {aircraft_key}"
+                    },
+                    style: {
+                        normal: {
+                            icon: this.imgs.aircraft_normal,
+                            width: 30,
+                            height: 30,
+                            offsets: {
+                                top: "-50%",
+                                left: "-50%"
+                            }
+                        }
+                    },
+                    data: []
+                });
+                //this.inmap.add(this.aircraft_overlay);
+                this.bmap.addOverlay(this.aircraft_overlay);
+
+                // 默认选择测站
+                this.$refs.selection.selectAll(true); 
+
+            },
+            beforeUpdate: function () {
+                // 清除百度logo 及版权
+                jQuery('div.anchorBL').remove();
+                jQuery('div.ivu-table-wrapper').height(jQuery(window).outerHeight(true) - 140);
+            },
+            methods: 
+            {
+                // testClick: function () 
+                // {
+                //     alert('ooo');
+                // },
+                setInterval: function () {
+                    if (this.set_interval_obj === null) {
+                        this.set_interval_obj = setInterval(function() {
+                            this.time = dayjs(this.time).add(1, 's').format("YYYY-MM-DD HH:mm:ss"); 
+
+                            this.setAircraftPoint();
+                        }.bind(this), 1000);
+                    }
+                },
+                selectionChange: function (data) {  
+                    this.client_checked = [];
+                    data.map(function (item) {
+                        this.client_checked.push(item.client_key);
+                    }.bind(this));  
+                    this.setMapCenter();
+                },
+                setMapCenter: function () {
+                    var positionArr = [];
+
+                    if (this.aircraft.length) {
+                        this.aircraft.map(function (item) { 
+                            positionArr.push(new BMap.Point(item.location.longitude, item.location.latitude));
+                        }.bind(this));  
+                    } else {
+                        this.client.map(function (item) {
+                            if (jQuery.inArray(item.client_key, this.client_checked) >= 0) {
+                                positionArr.push(new BMap.Point(item.longitude, item.latitude));
+                            }   
+                        }.bind(this));       
+                    }
+                   
+
+                    //var mapCenterObj = this.inmap.getMap().getViewport(positionArr);
+                    var mapCenterObj = this.bmap.getViewport(positionArr);
+                    ////// this.inmap.getMap().centerAndZoom(mapCenterObj.center, mapCenterObj.zoom - 1); //dele
+
+                    for (let i in positionArr) {
+                        positionArr[i] = null;
+                    } 
+                },
+                setClientPoint: function (client_key_arr) {
+                    var point = []; 
+                    this.client_overlay.setData(point); 
+                    this.client_img_overlay.setData(point);
+
+                    if (this.is_show_client === true) {
+                        this.client.map(function (item) {
+                            if (jQuery.inArray(item.client_key, client_key_arr) >= 0) {
+                                point.push({
+                                    client_name: item.name,
+                                    geometry: {
+                                        type: "Point",
+                                        coordinates: [item.longitude, item.latitude]
+                                    } 
+                                });
+                            } 
+                        }); 
+                    } 
+
+                    this.client_overlay.setData(point);                    
+                    this.client_img_overlay.setData(point);
+                },
+                mqttSubscribe: function (client_key_arr) {
+                    this.client.map(function (item) {
+                        if (jQuery.inArray(item.client_key, client_key_arr) >= 0) {
+                            this.mqtt_client.subscribe(item.topic); 
+                        } 
+                    }.bind(this)); 
+                },
+                mqttUnsubscribe: function (client_key_arr) {
+                    this.client.map(function (item) {
+                        if (jQuery.inArray(item.client_key, client_key_arr) >= 0) {
+                            this.mqtt_client.unsubscribe(item.topic);  
+                        } 
+                    }.bind(this)); 
+                },
+                mqttMessage: function (topic, message) {
+                    let messageObj = eval(message.toString());
+                    let aircrafts = [];
+
+                    console.info(messageObj);
+
+                    // 验证是否为数组
+                    if (!jQuery.isArray(messageObj)) return;
+
+                    messageObj.map(function (item) {
+                        if (jQuery.inArray(item.aircraft.aircraft_key, aircrafts) < 0) {
+                            aircrafts.push(item.aircraft.aircraft_key);
+                        } else {
+                            return;
+                        }
+
+                        // 添加新飞行器
+                        let index = jQuery.inArray(item.aircraft.aircraft_key, this.aircraft_keys); 
+                        if (index < 0) {
+                            this.aircraft_keys.push(item.aircraft.aircraft_key); 
+                            this.aircraft.push({
+                                aircraft_key: item.aircraft.aircraft_key, 
+                                brand: item.aircraft.brand, 
+                                model: item.aircraft.model, 
+                                description: item.aircraft.description, 
+                                location: item
+                            });
+                        } else {
+                            this.aircraft[index].location = item;
+                        }
+
+                        this.coordinate.push({
+                            aircraft_key: item.aircraft.aircraft_key, 
+                            is_legal: item.is_legal, 
+                            longitude: item.longitude, 
+                            latitude: item.latitude, 
+                            height: item.height, 
+                            heading: item.heading, 
+                            speed: item.speed, 
+                            time: dayjs.unix(item.time).format("YYYY-MM-DD HH:mm:ss")
+                        });
+
+                        console.log(item);
+
+                    }.bind(this));
+
+                    this.setMapCenter();
+                },
+                setAircraftPoint: function () {
+                    var point = []; 
+                    
+                    this.aircraft.map(function (item) {
+                        point.push({
+                            aircraft_key: item.location.aircraft.aircraft_key, 
+                            geometry: {
+                                type: "Point",
+                                coordinates: [item.location.longitude, item.location.latitude]
+                            } 
+                        }); 
+                    }.bind(this));
+
+                    this.aircraft_overlay.setData(point);
+                }
+            },
+            watch: {
+                client: function (n, o) {},
+                client_checked: function (n, o) {
+                    var differencet = [], type = '+';
+                    if (n.length > o.length) { 
+                        differencet = n.filter(function(v){ return o.indexOf(v) == -1 })    
+                        this.mqttSubscribe(differencet);
+                    } else {
+                        differencet = o.filter(function(v){ return n.indexOf(v) == -1 })
+                        this.mqttUnsubscribe(differencet);
+                    }  
+                    this.setClientPoint(this.client_checked);
+                },
+                is_show_client: function (n, o) { 
+                    this.setClientPoint(this.client_checked); 
+                },
+                coordinate: function (n, o) {
+                    let number = 20; 
+                    let diff = n.length - number;
+                    if (diff > 0) {
+                        this.coordinate.splice(0, diff);
+                    }
+                },
+                map_theme: function (n) {
+                    //this.inmap.getMap().setMapStyle({style: n});
+                    this.bmap.setMapStyle({style: n});
+                }
+            },
+            computed: {}
+        })
+
+    </script>
+</body>
+</html>

@@ -1,0 +1,114 @@
+{% extends 'base.html' %}
+{% load staticfiles %}
+
+{% block title %}
+    电磁频谱监测|首页
+{% endblock %}
+
+{% block header_extends %}
+    <link rel="stylesheet" href="{% static 'home.css' %}">
+    <script src="//cdn.hcharts.cn/highcharts/highcharts.js"></script>
+{% endblock %}
+
+{% block nav_home_active %}active{% endblock %}
+{% block toptitle %}
+    电磁频谱监测
+{% endblock %}
+{% block css %}
+<style type="text/css">
+     .head-text {
+        position: absolute;
+        text-align: center;
+        z-index: 1;
+        padding: 0 15px;
+    }
+
+    .vertical-align {
+        top: 10%;
+        -webkit-transform: translateY(-5%);
+
+    }
+    h3.home-content {
+    font-size: 222%;
+    text-align: center;
+    margin-top: 0em;
+    margin-bottom: 1em;
+}
+
+    {% block canvas %}{% endblock %}
+</style>
+
+{% endblock %}
+
+{% block content %}
+    <div class="head-text vertical-align">
+    <h1>5G 时代，万物互联 融合共享</h1>
+    <p>Interconnection, Fusion and Sharing of All Thing in 5G Era</p>
+    </div>
+    <img alt="banner" src="/static/images/banner.svg" class="vertical-align">
+    <h3 class="home-content">欢迎进入电磁频谱世界......</h3>
+    <!-- 图表容器 DOM -->
+    <div id="container"></div>
+    <div class="hot-data">
+        <h3>今天热门报文</h3>
+        <ul>
+            {% for hot_data in today_hot_data %}
+                <li><a href="{% url 'blog_detail' hot_data.content_object.pk %}">{{ hot_data.content_object.title }}</a>({{ hot_data.read_num }})</li>
+            {% empty %}
+                <li>今天暂时没有热门报文</li>
+            {% endfor %}
+        </ul>
+    </div>
+    <div class="hot-data">
+        <h3>昨天热门报文</h3>
+        <ul>
+            {% for hot_data in yesterday_hot_data %}
+                <li><a href="{% url 'blog_detail' hot_data.content_object.pk %}">{{ hot_data.content_object.title }}</a>({{ hot_data.read_num }})</li>
+            {% empty %}
+                <li>昨天暂时没有热门报文</li>
+            {% endfor %}
+        </ul>
+    </div>
+    <div class="hot-data">
+        <h3>7天热门报文</h3>
+        <ul>
+            {% for hot_blog in hot_blogs_for_7_days %}
+                <li><a href="{% url 'blog_detail' hot_blog.id %}">{{ hot_blog.title }}</a>({{ hot_blog.read_num_sum }})</li>
+            {% empty %}
+                <li>昨天暂时没有热门报文</li>
+            {% endfor %}
+        </ul>
+    </div>
+    <script>
+        // 图表配置
+        var options = {
+            chart: { type: 'line' },
+            title: { text: null },
+            xAxis: {
+                categories: {{ dates|safe }},   // x 轴分类
+                tickmarkPlacement: 'on',
+                title: { text: '前7日阅读量变化'},
+            },
+            yAxis: {
+                title: { text: null },
+                labels:{ enabled: false },
+                gridLineDashStyle: 'Dash',
+            },
+            series: [{                              // 数据列
+                name: '阅读量',                     // 数据列名
+                data: {{ read_nums }}               // 数据
+            }],
+            plotOptions: {
+                line: {
+                    dataLabels: {
+                        enabled: true
+                    }
+                }
+            },
+            legend: { enabled: false },
+            credits: { enabled: false },
+        };
+        // 图表初始化函数
+        var chart = Highcharts.chart('container', options);
+    </script>
+{% endblock %}
